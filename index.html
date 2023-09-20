@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test NAT Type</title>
+  <script>
+    window.addEventListener('load', (e) => {
+      const result = document.getElementById("result")
+      const portList = document.getElementById("port-list")
+
+    function parseCandidate(line) {
+    var parts
+
+    if (line.indexOf('a=candidate:') === 0) {
+      parts = line.substring(12).split(' ')
+    }else {
+      parts = line.substring(10).split(' ')
+    }
+
+    var candidate = {
+      foundation : parts[0],
+      component : parts[1],
+      protocol : parts[2].toLowerCase(),
+      priority: parseInt(parts[3], 10),
+      ip: parts[4],
+      port: parseInt(parts[5], 10),
+      // skp parts[6] = 'typ'
+      type: parts[7]
+    }
+
+    for (var i = 8; i < parts.length; i += 2) {
+      switch(parts[i]) {
+        case 'raddr':
+          candidate.relatedAddress = parts[i+1]
+          break
+        case 'rport':
+          candidate.relatedPort = parseInt(parts[i+1], 10)
+          break
+        case 'tcptype':
+          candidate.tcpType = parts[i+1]
+          break
+        default:
+          break
+      }
+    }
+    return candidate
+  }
+
+var candidates = {};
+var pc = new RTCPeerConnection({
+  iceServers: [
+    {urls: 'stun:stun1.l.google.com:19302'},
+    {urls: 'stun:stun2.l.google.com:19302'}
+  ]
+})
+pc.createDataChannel("foo")
+pc.onicecandidate = function(e) {
+  if (e.candidate && e.candidate.candidate.indexOf('srflx') != -1) {
+    result.innerText = "wait..."
+    if (Object.keys(candidates).length >= 1) {
+      var ports = candidates[Object.keys(candidates)[0]]
+      ports = ports.join("")
+      portList.innerText = ports
+    }
+
+    var cand = parseCandidate(e.candidate.candidate)
+    if (!candidates[cand.relatedPort]) candidates[cand.relatedPort] = []
+    candidates[cand.relatedPort].push(cand.port)
+  }else if (!e.candidate) {
+    state = 1
+    if (Object.keys(candidates).length === 1) {
+      var ports = candidates[Object.keys(candidates)[0]]
+      result.innerText = ports.length === 1 ? 'normal nat' : 'symmetric nat'
+      ports = ports.join(" | ")
+      portList.innerText = ports
+    }
+  }
+}
+
+pc.createOffer()
+  .then(offer => pc.setLocalDescription(offer))
+    })
+  </script>
+</head>
+<body>
+  <h1>Test NAT Type</h1>
+  <br>
+  <h1 id="result"></h1>
+  <h2>List port</h2>
+  <br>
+  <h2 id="port-list"></h2>
+</body>
+</html>
